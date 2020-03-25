@@ -1,5 +1,11 @@
-import org.apache.commons.lang.StringUtils;
+package com.process.entity;
 
+
+import com.process.utils.StringUtils;
+
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -9,12 +15,13 @@ import java.util.stream.Collectors;
  * @description: TODO
  * @date 2020/3/21
  */
-public class Ele {
+@XmlAccessorType(value= XmlAccessType.PROPERTY)
+public class Ele implements Serializable {
 
     private final static String SPLIT_KEY = " ";
     private final static String FORMAT="%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s";
 
-    Ele(String line) {
+    public Ele(String line) {
         List<String> array = Arrays.stream(line.trim().split(SPLIT_KEY)).filter(s -> {
             return StringUtils.isNotBlank(s);}).collect(Collectors.toList());
         eid = array.get(0);
@@ -24,10 +31,14 @@ public class Ele {
         }
     }
 
-    Ele(String eid,String pid,String[]n){
+    public Ele(String eid,String pid,String[]n){
         this.eid=eid;
         this.pid=pid;
         this.n = n;
+    }
+
+    public Ele(){
+
     }
 
     private String eid;
@@ -45,6 +56,18 @@ public class Ele {
 
     public String[] getN() {
         return n;
+    }
+
+    public void setEid(String eid) {
+        this.eid = eid;
+    }
+
+    public void setPid(String pid) {
+        this.pid = pid;
+    }
+
+    public void setN(String[] n) {
+        this.n = n;
     }
 
     @Override

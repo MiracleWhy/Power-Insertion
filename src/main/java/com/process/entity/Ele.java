@@ -24,14 +24,14 @@ public class Ele implements Serializable {
     public Ele(String line) {
         List<String> array = Arrays.stream(line.trim().split(SPLIT_KEY)).filter(s -> {
             return StringUtils.isNotBlank(s);}).collect(Collectors.toList());
-        eid = array.get(0);
-        pid = array.get(1);
+        eid = Integer.valueOf(array.get(0));
+        pid = Integer.valueOf(array.get(1));
         for (int i = 2; i < array.size(); i++) {
-            n[i - 2] = array.get(i);
+            n[i - 2] = Integer.valueOf(array.get(i));
         }
     }
 
-    public Ele(String eid,String pid,String[]n){
+    public Ele(Integer eid,Integer pid,Integer[]n){
         this.eid=eid;
         this.pid=pid;
         this.n = n;
@@ -41,32 +41,31 @@ public class Ele implements Serializable {
 
     }
 
-    private String eid;
-    private String pid;
-    private String[] n = new String[8];
+    private Integer eid;
+    private Integer pid;
+    private Integer[] n = new Integer[8];
 
-
-    public String getEid() {
+    public Integer getEid() {
         return eid;
     }
 
-    public String getPid() {
-        return pid;
-    }
-
-    public String[] getN() {
-        return n;
-    }
-
-    public void setEid(String eid) {
+    public void setEid(Integer eid) {
         this.eid = eid;
     }
 
-    public void setPid(String pid) {
+    public Integer getPid() {
+        return pid;
+    }
+
+    public void setPid(Integer pid) {
         this.pid = pid;
     }
 
-    public void setN(String[] n) {
+    public Integer[] getN() {
+        return n;
+    }
+
+    public void setN(Integer[] n) {
         this.n = n;
     }
 

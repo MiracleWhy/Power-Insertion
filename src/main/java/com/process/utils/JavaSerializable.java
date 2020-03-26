@@ -88,7 +88,9 @@ public class JavaSerializable
     public Object load(String path){
         try{
             File file = new File(path);
-            return this.load(new FileInputStream(file));
+            if(file.exists()) {
+                return this.load(new FileInputStream(file));
+            }
         }
         catch (Exception e){
             e.printStackTrace();

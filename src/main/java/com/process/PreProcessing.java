@@ -29,6 +29,8 @@ public class PreProcessing {
     private Integer part1 = 3;
     private Integer part2 = 4;
 
+    private String isCache="";
+
     private long startTime;
     private long processTime;
 
@@ -43,7 +45,7 @@ public class PreProcessing {
     Map<Integer, Nod> nodUnFractureDic = new HashMap<>();
     Map<Integer, Nod> nodEdgeDic = new HashMap<>();
     //新节点字典
-    Map<Integer, Nod> newNodeDic = new LinkedHashMap<>();
+    Map<Integer, Nod> newNodeDic = new ConcurrentHashMap<>();
     //Cohesive单元
     Map<Integer, Integer[]> cohesiveDic = new ConcurrentHashMap<>();
     List<Integer> cohesiveHorizontal = new Vector<>();
@@ -62,7 +64,7 @@ public class PreProcessing {
         this.part2 = part2;
     }
 
-    PreProcessing(String threshold, String inputPath, String outputPath, Integer part1, Integer part2) throws Exception {
+    PreProcessing(String threshold, String inputPath, String outputPath, Integer part1, Integer part2,String isCache) throws Exception {
         String[] thresholdArray = threshold.split(",");
         if (thresholdArray.length == 4) {
             this.deltaLowerX = Double.valueOf(thresholdArray[0]);
@@ -76,6 +78,7 @@ public class PreProcessing {
         this.outputPath = outputPath;
         this.part1 = part1;
         this.part2 = part2;
+        this.isCache = isCache;
     }
 
     PreProcessing() {
@@ -135,7 +138,9 @@ public class PreProcessing {
      */
     private void handleFracture() {
         //遍历eleDic，区分开裂与非开裂单元
-        eleDic.keySet().stream().forEach(eid -> {
+        AtomicInteger count = new AtomicInteger(0);
+        eleDic.keySet().parallelStream().forEach(eid -> {
+            System.out.println(String.format("开裂单元与非开裂单元区分处理中，当前进度%s/%s", count.incrementAndGet(), eleDic.size()));
             Ele ele = eleDic.get(eid);
             boolean isFracture = true;
             for (Integer n : ele.getN()) {
@@ -167,6 +172,9 @@ public class PreProcessing {
             }
         });
 
+        processTime = System.currentTimeMillis();
+        System.out.println(String.format("区分开裂及非开裂单元完成,耗时:%s", (processTime - startTime)));
+        startTime = processTime;
     }
 
     /**
@@ -201,7 +209,7 @@ public class PreProcessing {
         List<Integer> nodeFractureKeyList = nodFractureDic.keySet().stream().collect(Collectors.toList());
         final Integer nodPosBase = Double.valueOf(Math.pow(10, nodPos)).intValue();
         AtomicInteger count = new AtomicInteger(0);
-        nodDic.keySet().stream().forEach(nid -> {
+        nodDic.keySet().parallelStream().forEach(nid -> {
             System.out.println(String.format("节点分裂处理中，当前进度%s/%s", count.incrementAndGet(), nodDic.size()));
             //若节点在非开裂区内，则编号不变
             if (nodeUnFractureKeyList.contains(nid)) {
@@ -222,7 +230,6 @@ public class PreProcessing {
 
     /**
      * 更新开裂单元
-     *
      */
     private void updateEleFractureDic() {
 
@@ -306,7 +313,7 @@ public class PreProcessing {
     }
 
 
-    private void buildCohesiveHorizal(Map<Integer, Nod> newNodeDic) {
+    private void buildCohesiveHorizal() {
         System.out.println("水平单元计算开始");
         List<Integer> keyList = eleFractureDic.keySet().stream().collect(Collectors.toList());
         Map<Integer, Boolean> compareTable = new ConcurrentHashMap<>();
@@ -316,52 +323,57 @@ public class PreProcessing {
             System.out.println(String.format("水平单元计算中:当前进度:%s/%s", count3.incrementAndGet(), keyList.size()));
             keyList.stream().forEach(jKey -> {
                 //已经比较过，不再比较
-                if (compareTable.containsKey(iKey + jKey) || compareTable.containsKey(jKey + iKey)||iKey.equals(jKey)) {
+                if (compareTable.containsKey(iKey + jKey) || compareTable.containsKey(jKey + iKey) || iKey.equals(jKey)) {
                     return;
                 } else {
-                    compareTable.put(iKey + jKey, true);
-                }
-                List<Integer[]> New_ele_lis = new ArrayList<>();
-                for (Integer m : eleFractureDic.get(iKey).getN()) {
-                    for (Integer n : eleFractureDic.get(jKey).getN()) {
-                        if (mod(m).equals(mod(n))) {
-                            Integer[] item = {m, n};
-                            New_ele_lis.add(item);
+                    List<Integer[]> New_ele_lis = new ArrayList<>();
+                    for (Integer m : eleFractureDic.get(iKey).getN()) {
+                        for (Integer n : eleFractureDic.get(jKey).getN()) {
+                            if (mod(m).equals(mod(n))) {
+                                Integer[] item = {m, n};
+                                New_ele_lis.add(item);
+                            }
                         }
                     }
-                }
-                if (New_ele_lis.size() == 4) {
-                    Double d = Double.valueOf(newNodeDic.get(New_ele_lis.get(0)[0]).getZ())
-                            + Double.valueOf(newNodeDic.get(New_ele_lis.get(1)[0]).getZ())
-                            - Double.valueOf(newNodeDic.get(New_ele_lis.get(2)[0]).getZ())
-                            - Double.valueOf(newNodeDic.get(New_ele_lis.get(3)[0]).getZ());
-                    int bb = bbIndex.incrementAndGet();
+                    synchronized (compareTable) {
+                        if (compareTable.containsKey(iKey + jKey) || compareTable.containsKey(jKey + iKey) || iKey.equals(jKey)) {
+                            return;
+                        }
+                        if (New_ele_lis.size() == 4) {
+                            Double d = Double.valueOf(newNodeDic.get(New_ele_lis.get(0)[0]).getZ())
+                                    + Double.valueOf(newNodeDic.get(New_ele_lis.get(1)[0]).getZ())
+                                    - Double.valueOf(newNodeDic.get(New_ele_lis.get(2)[0]).getZ())
+                                    - Double.valueOf(newNodeDic.get(New_ele_lis.get(3)[0]).getZ());
+                            int bb = bbIndex.incrementAndGet();
 
-                    if (Math.abs(d) < Math.pow(10, -3)) {
-                        cohesiveHorizontal.add(bb);
-                        Integer[] array = {
-                                New_ele_lis.get(0)[0],
-                                New_ele_lis.get(1)[0],
-                                New_ele_lis.get(2)[0],
-                                New_ele_lis.get(3)[0],
-                                New_ele_lis.get(0)[1],
-                                New_ele_lis.get(1)[1],
-                                New_ele_lis.get(2)[1],
-                                New_ele_lis.get(3)[1]
-                        };
-                        cohesiveDic.put(bb, array);
-                    } else {
-                        Integer[] array = {
-                                New_ele_lis.get(0)[0],
-                                New_ele_lis.get(1)[0],
-                                New_ele_lis.get(3)[0],
-                                New_ele_lis.get(2)[0],
-                                New_ele_lis.get(0)[1],
-                                New_ele_lis.get(1)[1],
-                                New_ele_lis.get(3)[1],
-                                New_ele_lis.get(2)[1]
-                        };
-                        cohesiveDic.put(bb, array);
+                            if (Math.abs(d) < Math.pow(10, -3)) {
+                                cohesiveHorizontal.add(bb);
+                                Integer[] array = {
+                                        New_ele_lis.get(0)[0],
+                                        New_ele_lis.get(1)[0],
+                                        New_ele_lis.get(2)[0],
+                                        New_ele_lis.get(3)[0],
+                                        New_ele_lis.get(0)[1],
+                                        New_ele_lis.get(1)[1],
+                                        New_ele_lis.get(2)[1],
+                                        New_ele_lis.get(3)[1]
+                                };
+                                cohesiveDic.put(bb, array);
+                            } else {
+                                Integer[] array = {
+                                        New_ele_lis.get(0)[0],
+                                        New_ele_lis.get(1)[0],
+                                        New_ele_lis.get(3)[0],
+                                        New_ele_lis.get(2)[0],
+                                        New_ele_lis.get(0)[1],
+                                        New_ele_lis.get(1)[1],
+                                        New_ele_lis.get(3)[1],
+                                        New_ele_lis.get(2)[1]
+                                };
+                                cohesiveDic.put(bb, array);
+                            }
+                            compareTable.put(iKey + jKey, true);
+                        }
                     }
                 }
             });
@@ -372,7 +384,7 @@ public class PreProcessing {
     }
 
 
-    private void writeToFile(List<String> fileList){
+    private void writeToFile(List<String> fileList) {
 
         System.out.println("处理完毕，开始写入新文件，路径为:" + outputPath);
         try (
@@ -483,7 +495,7 @@ public class PreProcessing {
 
         Object eleFractureDicTemp = javaSerializable.load(this.filePath + ELE_FRACTURE_MAP_SUFFIX);
         Object newNodeDicTemp = javaSerializable.load(this.filePath + NEW_NODE_DIC_SUFFIX);
-        if (eleFractureDicTemp != null && newNodeDicTemp != null) {
+        if ("true".equals(isCache)&& eleFractureDicTemp != null && newNodeDicTemp != null) {
             System.out.println("读取到中间计算结果");
             ((HashMap<Integer, Ele>) eleFractureDicTemp).keySet().stream().forEach(eid -> {
                 eleFractureDic.put(eid, ((HashMap<String, Ele>) eleFractureDicTemp).get(eid));
@@ -503,7 +515,7 @@ public class PreProcessing {
         //开始生成cohesive单元
         this.buildCohesive();
         //水平单元计算开始
-        this.buildCohesiveHorizal(newNodeDic);
+        this.buildCohesiveHorizal();
         //开始写入新文件
         this.writeToFile(oriFileList);
     }
@@ -558,6 +570,7 @@ public class PreProcessing {
         String threshold = System.getProperty("threshold");
         String part1 = System.getProperty("part1");
         String part2 = System.getProperty("part2");
+        String isCache = System.getProperty("isCache");
 
 
         //参数输入
@@ -568,7 +581,7 @@ public class PreProcessing {
                 inputPath = scanner.nextLine();
                 System.out.println("尝试查找config文件....");
                 String fileName = getFileNameByPath(inputPath);
-                File file = new File(inputPath.replace(fileName, fileName+ "_config.dat"));
+                File file = new File(inputPath.replace(fileName, fileName + "_config.dat"));
                 if (file.exists()) {
                     List<String> configList = getFile(file);
                     for (String s : configList) {
@@ -583,6 +596,9 @@ public class PreProcessing {
                         }
                         if (s.contains("part2")) {
                             part2 = s.split("=")[1];
+                        }
+                        if(s.contains("isCache")){
+                            isCache = s.split("=")[1];
                         }
                     }
                 }
@@ -611,6 +627,14 @@ public class PreProcessing {
                 }
                 continue;
             }
+            if(StringUtils.isEmpty(isCache)){
+                System.out.println("是否需要使用中间计算结果加速计算？(请输入true或者false)");
+                isCache = scanner.nextLine();
+                if(StringUtils.isEmpty(isCache)){
+                    isCache = "true";
+                }
+                continue;
+            }
             break;
         }
 
@@ -619,7 +643,7 @@ public class PreProcessing {
         List<String> oriFileList = getFile(file);
 
         //处理开始
-        PreProcessing preProcessing = new PreProcessing(threshold, inputPath, outputPath, Integer.valueOf(part1), Integer.valueOf(part2));
+        PreProcessing preProcessing = new PreProcessing(threshold, inputPath, outputPath, Integer.valueOf(part1), Integer.valueOf(part2),isCache);
         preProcessing.process(oriFileList);
 
         System.out.println("处理完成");

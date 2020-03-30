@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author wangheyu
@@ -25,7 +26,9 @@ public class MapUtil {
         Set<Integer> bigMapKey = map1.keySet();
         Set<Integer> smallMapKey = map2.keySet();
         Map<Integer, Nod> result = new HashMap<>();
-        bigMapKey.stream().forEach(m1->{
+        AtomicInteger count = new AtomicInteger(0);
+        bigMapKey.parallelStream().forEach(m1->{
+            System.out.println(String.format("集合交集处理，当前进度%s/%s", count.incrementAndGet(), bigMapKey.size()));
             smallMapKey.stream().forEach(m2->{
                 if(m1.equals(m2)){
                     result.put(m1,map1.get(m1));
